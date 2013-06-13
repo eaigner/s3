@@ -35,7 +35,7 @@ type part struct {
 }
 
 type uploader struct {
-	c        *Conf
+	c        *S3
 	path     string
 	url      string
 	UploadId string // written by xml decoder
@@ -55,7 +55,7 @@ type uploader struct {
 }
 
 // http://docs.amazonwebservices.com/AmazonS3/latest/dev/mpuoverview.html.
-func newUploader(c *Conf, path string) (u *uploader, err error) {
+func newUploader(c *S3, path string) (u *uploader, err error) {
 	u = &uploader{
 		c:    c,
 		path: path,

@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-var conf = &Conf{
+var s3 = &S3{
 	Bucket: os.Getenv("S3_BUCKET"),
 	Key:    os.Getenv("S3_KEY"),
 	Secret: os.Getenv("S3_SECRET"),
 }
 
 func TestS3(t *testing.T) {
-	o := conf.Object("test.txt")
+	o := s3.Object("test.txt")
 
 	// Write
 	w, err := o.Writer()

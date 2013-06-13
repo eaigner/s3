@@ -1,55 +1,85 @@
 package s3
 
 import (
-	"io"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
+	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
+	"strings"
 	"time"
 )
 
-type WriteAbortCloser interface {
-	io.WriteCloser
-	Abort() error
+type S3 struct {
+	Bucket string
+	Key    string
+	Secret string
 }
 
-type Object struct {
-	c    *Conf
-	Path string
-}
-
-// Delete deletes the S3 object
-func (o *Object) Delete() error {
-	_, err := o.request("DELETE", 204)
-	return err
-}
-
-// Writer returns a new WriteAbortCloser you can write to.
-// The written data will be uploaded as a multipart request.
-func (o *Object) Writer() (WriteAbortCloser, error) {
-	return newUploader(o.c, o.Path)
-}
-
-// Reader returns a new ReadCloser you can read from.
-func (o *Object) Reader() (io.ReadCloser, http.Header, error) {
-	resp, err := o.request("GET", 200)
-	if err != nil {
-		return nil, nil, err
+// Object returns a new S3 object handle at path.
+func (c *S3) Object(path string) *Object {
+	return &Object{
+		c:    c,
+		Path: path,
 	}
-	return resp.Body, resp.Header, nil
 }
 
-func (o *Object) request(method string, expectCode int) (*http.Response, error) {
-	req, err := http.NewRequest(method, o.c.url(o.Path), nil)
-	if err != nil {
-		return nil, err
+func (c *S3) url(path string) string {
+	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", c.Bucket, path)
+}
+
+func (c *S3) signRequest(req *http.Request) {
+	amzHeaders := ""
+	resource := "/" + c.Bucket + req.URL.Path
+
+	// Parameters require specific ordering
+	query := req.URL.Query()
+	if len(query) > 0 {
+		keys := []string{}
+		for k := range query {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
+
+		parts := []string{}
+		for _, key := range keys {
+			vals := query[key]
+			for _, val := range vals {
+				if val == "" {
+					parts = append(parts, url.QueryEscape(key))
+				} else {
+					part := fmt.Sprintf("%s=%s", url.QueryEscape(key), url.QueryEscape(val))
+					parts = append(parts, part)
+				}
+			}
+		}
+
+		req.URL.RawQuery = strings.Join(parts, "&")
 	}
-	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
-	o.c.signRequest(req)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
+
+	if req.URL.RawQuery != "" {
+		resource += "?" + req.URL.RawQuery
 	}
-	if resp.StatusCode != expectCode {
-		return nil, newS3Error(resp)
+
+	if req.Header.Get("Date") == "" {
+		req.Header.Set("Date", time.Now().Format(time.RFC1123))
 	}
-	return resp, nil
+
+	authStr := strings.Join([]string{
+		strings.TrimSpace(req.Method),
+		req.Header.Get("Content-MD5"),
+		req.Header.Get("Content-Type"),
+		req.Header.Get("Date"),
+		amzHeaders + resource,
+	}, "\n")
+
+	h := hmac.New(sha1.New, []byte(c.Secret))
+	h.Write([]byte(authStr))
+
+	h64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
+	auth := "AWS" + " " + c.Key + ":" + h64
+	req.Header.Set("Authorization", auth)
 }
