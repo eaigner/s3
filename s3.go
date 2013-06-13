@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-type ReadAbortCloser interface {
-	io.ReadCloser
+type WriteAbortCloser interface {
+	io.WriteCloser
 	Abort()
 }
 
@@ -22,9 +22,9 @@ func (o *Object) Delete() error {
 	return err
 }
 
-// Writer returns a new WriteCloser you can write to.
+// Writer returns a new WriteAbortCloser you can write to.
 // The written data will be uploaded as a multipart request.
-func (o *Object) Writer() (io.WriteCloser, error) {
+func (o *Object) Writer() (WriteAbortCloser, error) {
 	return newUploader(o.c, o.Path)
 }
 
