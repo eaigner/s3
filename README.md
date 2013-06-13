@@ -1,3 +1,5 @@
+Simple S3 API for Go. Docs [here](http://godoc.org/github.com/eaigner/s3).
+
 #### Acknowledgements
 
 First, a huge thanks goes to [Keith Rarick](https://github.com/kr) and [Lye](https://github.com/lye) on whose s3 packages this implementation is based on for a large part. The goal of this package is simply to provide a more convenient API.
