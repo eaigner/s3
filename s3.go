@@ -7,7 +7,6 @@ import (
 )
 
 type Object struct {
-	io.WriteCloser
 	c    *Conf
 	Path string
 }
