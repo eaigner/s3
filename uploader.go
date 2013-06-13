@@ -45,6 +45,7 @@ type uploader struct {
 	ch       chan *part
 	part     int
 	closed   bool
+	aborted  bool
 	err      error
 	wg       sync.WaitGroup
 	xml      struct {
@@ -177,7 +178,7 @@ func (u *uploader) Close() error {
 	u.wg.Wait()
 	close(u.ch)
 	u.closed = true
-	if u.err != nil {
+	if u.aborted || u.err != nil {
 		u.abort()
 		return u.err
 	}
@@ -204,6 +205,11 @@ func (u *uploader) Close() error {
 	}
 	resp.Body.Close()
 	return nil
+}
+
+func (u *uploader) Abort() {
+	u.aborted = true
+	u.Close()
 }
 
 func (u *uploader) abort() {

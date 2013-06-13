@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+type ReadAbortCloser interface {
+	io.ReadCloser
+	Abort()
+}
+
 type Object struct {
 	c    *Conf
 	Path string
