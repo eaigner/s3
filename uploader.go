@@ -207,9 +207,9 @@ func (u *uploader) Close() error {
 	return nil
 }
 
-func (u *uploader) Abort() {
+func (u *uploader) Abort() error {
 	u.aborted = true
-	u.Close()
+	return u.Close()
 }
 
 func (u *uploader) abort() {

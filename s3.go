@@ -8,7 +8,7 @@ import (
 
 type WriteAbortCloser interface {
 	io.WriteCloser
-	Abort()
+	Abort() error
 }
 
 type Object struct {
