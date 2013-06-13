@@ -18,7 +18,7 @@ conf := &s3.Conf{
 
 #### 2. Get Object Handle
 
-`Object(path)` returns a new S3 object bound to the configuration it was created from.
+`Object(path)` returns a new S3 object handle bound to the configuration it was created from.
 
 ```
 obj := conf.Object("path/to/hello.txt")

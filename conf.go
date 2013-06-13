@@ -18,7 +18,7 @@ type Conf struct {
 	Secret string
 }
 
-// Object returns a new S3 object at path
+// Object returns a new S3 object handle at path.
 func (c *Conf) Object(path string) *Object {
 	return &Object{
 		c:    c,
