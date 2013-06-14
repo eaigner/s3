@@ -4,7 +4,7 @@ Simple S3 API for Go. Docs [here](http://godoc.org/github.com/eaigner/s3).
 
 First, a huge thanks goes to [Keith Rarick](https://github.com/kr) and [Lye](https://github.com/lye) on whose s3 packages this implementation is based on for a large part. The goal of this package is simply to provide a more convenient API.
 
-#### 1. Create S3 config
+#### S3 Config
 
 The configuration contains you credentials and bucket info.
 
@@ -16,7 +16,7 @@ s3c := &s3.S3{
 }
 ```
 
-#### 2. Get an object handle
+#### Object
 
 `Object(path)` returns a new S3 object handle bound to the configuration it was created from.
 
@@ -24,7 +24,7 @@ s3c := &s3.S3{
 obj := s3c.Object("path/to/hello.txt")
 ```
 
-#### 3. Upload
+#### Upload
 
 Writing to the `WriteAbortCloser` returned by `Writer()` allows you to upload objects.
 
@@ -36,7 +36,7 @@ io.Copy(w, bytes.NewBufferString("hello world!"))
 // NOTE: You can abort uploads with w.Abort()
 ```
 
-#### 4. Download
+#### Download
 
 Reading from the `ReadCloser` returned by `Reader()` allows you to download objects.
 
@@ -45,7 +45,15 @@ r, headers, err := obj.Reader()
 b, err := ioutil.ReadAll(r)
 ```
 
-#### 5. Delete
+#### Existence
+
+Check if an object exists.
+
+```
+exists, err := obj.Exists()
+```
+
+#### Delete
 
 Delete the object.
 

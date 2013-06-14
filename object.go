@@ -16,10 +16,19 @@ type Object struct {
 	Path string
 }
 
-// Delete deletes the S3 object
+// Delete deletes the S3 object.
 func (o *Object) Delete() error {
 	_, err := o.request("DELETE", 204)
 	return err
+}
+
+// Exists tests if an object already exists.
+func (o *Object) Exists() (bool, error) {
+	resp, err := o.request("HEAD", 0)
+	if err != nil {
+		return false, err
+	}
+	return (resp.StatusCode == 200), nil
 }
 
 // Writer returns a new WriteAbortCloser you can write to.
@@ -48,7 +57,7 @@ func (o *Object) request(method string, expectCode int) (*http.Response, error) 
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != expectCode {
+	if expectCode != 0 && resp.StatusCode != expectCode {
 		return nil, newS3Error(resp)
 	}
 	return resp, nil

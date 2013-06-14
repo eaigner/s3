@@ -16,6 +16,7 @@ var s3 = &S3{
 
 func TestS3(t *testing.T) {
 	o := s3.Object("test.txt")
+	o.Delete()
 
 	// Write
 	w, err := o.Writer()
@@ -31,6 +32,15 @@ func TestS3(t *testing.T) {
 	err = w.Close()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Exists?
+	exists, err := o.Exists()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal(exists)
 	}
 
 	// Read
@@ -52,5 +62,14 @@ func TestS3(t *testing.T) {
 	err = o.Delete()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Exists?
+	exists, err = o.Exists()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal(exists)
 	}
 }
