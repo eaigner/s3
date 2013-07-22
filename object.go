@@ -32,7 +32,7 @@ const (
 	BucketOwnerFull   = ACL("bucket-owner-full-control")
 )
 
-// FormUpload returns a new signed form upload object
+// FormUpload returns a new signed form upload url
 func (o *Object) FormUploadURL(acl ACL, policy Policy, customParams ...url.Values) (*url.URL, error) {
 	b, err := json.Marshal(policy)
 	if err != nil {
