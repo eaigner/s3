@@ -59,7 +59,7 @@ func newUploader(c *S3, path string) (u *uploader, err error) {
 	u = &uploader{
 		c:    c,
 		path: path,
-		url:  c.url(path),
+		url:  c.url(path).String(),
 	}
 
 	u.bufsz = minPartSize

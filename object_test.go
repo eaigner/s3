@@ -73,3 +73,47 @@ func TestS3(t *testing.T) {
 		t.Fatal(exists)
 	}
 }
+
+func TestFormURL(t *testing.T) {
+	o := s3.Object("form.txt")
+
+	p := make(Policy)
+	p.SetExpiration(3600)
+	p.Conditions().AddBucket(s3.Bucket)
+	p.Conditions().AddACL(PublicRead)
+	p.Conditions().MatchStartsWith("$key", "form.txt")
+
+	u, err := o.FormUploadURL(PublicRead, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TODO(erik): this test isn't good but sufficient for now, enhance it
+	for k, v := range u.Query() {
+		switch k {
+		case "AWSAccessKeyId":
+			if len(v[0]) == 0 {
+				t.Fatal("access key missing")
+			}
+		// AKIAIPXCDLRVA67BZQWA
+		case "acl":
+			if v[0] != "public-read" {
+				t.Fatal(v)
+			}
+		case "key":
+			if v[0] != "form.txt" {
+				t.Fatal(v)
+			}
+		case "policy":
+			if v[0] == "" {
+				t.Fatal("policy missing")
+			}
+		case "signature":
+			if len(v[0]) == 0 {
+				t.Fatal("signature missing")
+			}
+		default:
+			t.Fatal("unexpected key")
+		}
+	}
+}

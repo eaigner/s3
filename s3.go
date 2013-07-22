@@ -21,13 +21,21 @@ type S3 struct {
 // Object returns a new S3 object handle at path.
 func (c *S3) Object(path string) *Object {
 	return &Object{
-		c:    c,
-		Path: path,
+		c:   c,
+		Key: path,
 	}
 }
 
-func (c *S3) url(path string) string {
-	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", c.Bucket, path)
+func (c *S3) url(path string) *url.URL {
+	u, err := url.Parse("https://" + c.Bucket + ".s3.amazonaws.com")
+	if err != nil {
+		panic(err)
+	}
+	if path != "" && !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	u.Path = path
+	return u
 }
 
 func (c *S3) signRequest(req *http.Request) {
