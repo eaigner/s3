@@ -71,6 +71,6 @@ p.Conditions().MatchStartsWith("$key", "hello.txt")
 url, err := o.FormUploadURL(s3.PublicRead, p)
 ```
 
-#### Acknowledgements
+### Acknowledgements
 
 Thanks goes to [Keith Rarick](https://github.com/kr) and [Lye](https://github.com/lye) on whose s3 packages this implementation is based on.
