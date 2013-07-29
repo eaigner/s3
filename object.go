@@ -5,9 +5,11 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -19,6 +21,31 @@ type WriteAbortCloser interface {
 type Object struct {
 	c   *S3
 	Key string
+}
+
+// ObjectHead represents the headers returned by a HEAD request.
+type ObjectHead struct {
+	http.Header
+}
+
+func (oh *ObjectHead) Date() (time.Time, error) {
+	return time.Parse(time.RFC1123, oh.Get("Date"))
+}
+
+func (oh *ObjectHead) LastModified() (time.Time, error) {
+	return time.Parse(time.RFC1123, oh.Get("Last-Modified"))
+}
+
+func (oh *ObjectHead) ETag() string {
+	return oh.Get("ETag")
+}
+
+func (oh *ObjectHead) ContentLength() (int64, error) {
+	return strconv.ParseInt(oh.Get("Content-Length"), 10, 64)
+}
+
+func (oh *ObjectHead) ContentType() string {
+	return oh.Get("Content-Type")
 }
 
 type ACL string
@@ -76,6 +103,18 @@ func (o *Object) Exists() (bool, error) {
 		return false, err
 	}
 	return (resp.StatusCode == 200), nil
+}
+
+// Head gets the objects meta information.
+func (o *Object) Head() (*ObjectHead, error) {
+	resp, err := o.request("HEAD", 0)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == 200 {
+		return &ObjectHead{resp.Header}, nil
+	}
+	return nil, errors.New(http.StatusText(resp.StatusCode))
 }
 
 // Writer returns a new WriteAbortCloser you can write to.

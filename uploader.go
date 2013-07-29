@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -66,6 +67,11 @@ func newUploader(c *S3, path string) (u *uploader, err error) {
 	r, err := http.NewRequest("POST", u.url+"?uploads", nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// S3 won't set the content type correctly in some cases, so we do it ourselves
+	if contentType, ok := mimeTypes[filepath.Ext(path)]; ok {
+		r.Header.Set("Content-Type", contentType)
 	}
 	r.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 	u.c.signRequest(r)

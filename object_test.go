@@ -58,6 +58,21 @@ func TestS3(t *testing.T) {
 		t.Fatal(x)
 	}
 
+	// Head
+	h, err := o.Head()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x, _ := h.ContentLength(); x != 6 {
+		t.Fatal(x)
+	}
+	if x := h.ContentType(); x != "text/plain" {
+		t.Fatal(x)
+	}
+	if x := h.ETag(); x == "" {
+		t.Fatal(x)
+	}
+
 	// Delete
 	err = o.Delete()
 	if err != nil {
