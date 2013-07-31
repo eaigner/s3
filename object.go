@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -120,7 +121,7 @@ func (o *Object) Head() (*ObjectHead, error) {
 // Writer returns a new WriteAbortCloser you can write to.
 // The written data will be uploaded as a multipart request.
 func (o *Object) Writer() (WriteAbortCloser, error) {
-	return newUploader(o.c, o.Key)
+	return newUploader(o.c, o.urlSafeKey())
 }
 
 // Reader returns a new ReadCloser you can read from.
@@ -132,8 +133,17 @@ func (o *Object) Reader() (io.ReadCloser, http.Header, error) {
 	return resp.Body, resp.Header, nil
 }
 
+func (o *Object) urlSafeKey() string {
+	comp := strings.Split(o.Key, `/`)
+	a := make([]string, 0, len(comp))
+	for _, s := range comp {
+		a = append(a, url.QueryEscape(s))
+	}
+	return strings.Join(a, `/`)
+}
+
 func (o *Object) request(method string, expectCode int) (*http.Response, error) {
-	req, err := http.NewRequest(method, o.c.url(o.Key).String(), nil)
+	req, err := http.NewRequest(method, o.c.url(o.urlSafeKey()).String(), nil)
 	if err != nil {
 		return nil, err
 	}

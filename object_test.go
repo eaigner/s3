@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
+	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -17,7 +20,8 @@ var s3 = &S3{
 }
 
 func TestS3(t *testing.T) {
-	o := s3.Object(fmt.Sprintf("%d/test 1.txt", time.Now().UnixNano()))
+	key := fmt.Sprintf("%d/test 1.txt", time.Now().UnixNano())
+	o := s3.Object(key)
 	o.Delete()
 
 	// Write
@@ -61,7 +65,7 @@ func TestS3(t *testing.T) {
 	}
 
 	// Head
-	h, err := o.Head()
+	h, err := s3.Object(key).Head()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,13 +96,16 @@ func TestS3(t *testing.T) {
 }
 
 func TestFormURL(t *testing.T) {
-	o := s3.Object("form.txt")
+	fileName := "form 1.txt"
+	content := "form upload content!"
+	key := fmt.Sprintf("%d/%s", time.Now().UnixNano(), fileName)
+	o := s3.Object(key)
 
 	p := make(Policy)
 	p.SetExpiration(3600)
 	p.Conditions().AddBucket(s3.Bucket)
 	p.Conditions().AddACL(PublicRead)
-	p.Conditions().MatchStartsWith("$key", "form.txt")
+	p.Conditions().MatchEquals("$key", key)
 
 	u, err := o.FormUploadURL(PublicRead, p)
 	if err != nil {
@@ -118,7 +125,7 @@ func TestFormURL(t *testing.T) {
 				t.Fatal(v)
 			}
 		case "key":
-			if v[0] != "form.txt" {
+			if v[0] != key {
 				t.Fatal(v)
 			}
 		case "policy":
@@ -132,5 +139,45 @@ func TestFormURL(t *testing.T) {
 		default:
 			t.Fatal("unexpected key")
 		}
+	}
+
+	// Upload
+	t.Log(u.String())
+
+	// Assemble multipart body
+	var buf bytes.Buffer
+	var w = multipart.NewWriter(&buf)
+
+	q := u.Query()
+	for k, _ := range q {
+		w.WriteField(k, q.Get(k))
+	}
+	fw, err := w.CreateFormFile("file", fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = io.Copy(fw, strings.NewReader(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	// Create request
+	req, err := http.NewRequest("POST", u.Scheme+`://`+u.Host, &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	// Send
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if x := res.StatusCode; x != 204 {
+		b, _ := ioutil.ReadAll(res.Body)
+		t.Log(string(b))
+		t.Fatal(x)
 	}
 }

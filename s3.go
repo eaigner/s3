@@ -18,17 +18,11 @@ type S3 struct {
 	Secret string
 }
 
-// Object returns a new S3 object handle at path.
-// The path is split up at / and it's components are URL encoded.
-func (c *S3) Object(path string) *Object {
-	comp := strings.Split(path, `/`)
-	a := make([]string, 0, len(comp))
-	for _, s := range comp {
-		a = append(a, url.QueryEscape(s))
-	}
+// Object returns a new S3 object handle for the specified key.
+func (c *S3) Object(key string) *Object {
 	return &Object{
 		c:   c,
-		Key: strings.Join(a, `/`),
+		Key: key,
 	}
 }
 
