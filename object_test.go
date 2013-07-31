@@ -2,10 +2,12 @@ package s3
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 )
 
 var s3 = &S3{
@@ -15,7 +17,7 @@ var s3 = &S3{
 }
 
 func TestS3(t *testing.T) {
-	o := s3.Object("test.txt")
+	o := s3.Object(fmt.Sprintf("%d/test 1.txt", time.Now().UnixNano()))
 	o.Delete()
 
 	// Write

@@ -19,10 +19,16 @@ type S3 struct {
 }
 
 // Object returns a new S3 object handle at path.
+// The path is split up at / and it's components are URL encoded.
 func (c *S3) Object(path string) *Object {
+	comp := strings.Split(path, `/`)
+	a := make([]string, 0, len(comp))
+	for _, s := range comp {
+		a = append(a, url.QueryEscape(s))
+	}
 	return &Object{
 		c:   c,
-		Key: path,
+		Key: strings.Join(a, `/`),
 	}
 }
 
