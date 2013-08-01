@@ -22,7 +22,7 @@ type S3 struct {
 func (c *S3) Object(key string) *Object {
 	return &Object{
 		c:   c,
-		Key: key,
+		Key: prependSlash(key),
 	}
 }
 
@@ -31,11 +31,15 @@ func (c *S3) url(path string) *url.URL {
 	if err != nil {
 		panic(err)
 	}
-	if path != "" && !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	u.Path = path
+	u.Path = prependSlash(path)
 	return u
+}
+
+func prependSlash(s string) string {
+	if s != "" && !strings.HasPrefix(s, "/") {
+		return "/" + s
+	}
+	return s
 }
 
 func (c *S3) signRequest(req *http.Request) {

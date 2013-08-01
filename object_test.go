@@ -64,6 +64,41 @@ func TestS3(t *testing.T) {
 		t.Fatal(x)
 	}
 
+	// Unauthenticated access
+	resp, err := http.Get("http://s3.amazonaws.com/" + s3.Bucket + o.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 403 {
+		t.Fatal(resp.StatusCode)
+	}
+
+	// Test access with pre-signed url
+	u, err := o.AuthenticatedURL("GET", 60*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(u.String())
+
+	resp, err = http.Get(u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if x := string(body); x != s {
+		t.Fatal(x)
+	}
+
 	// Head
 	h, err := s3.Object(key).Head()
 	if err != nil {

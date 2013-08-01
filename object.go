@@ -91,6 +91,39 @@ func (o *Object) FormUploadURL(acl ACL, policy Policy, customParams ...url.Value
 	return u, nil
 }
 
+// AuthenticatedURL produces a signed URL that can be used to access private resources
+func (o *Object) AuthenticatedURL(method string, expiresIn time.Duration) (*url.URL, error) {
+	// Create signature string
+	//
+	// Make sure to always use + instead of %20, otherwise
+	// we might get problems when pre-authorizing requests because
+	// spaces are escaped differently in the path and query.
+	key := strings.Replace(o.urlSafeKey(), `+`, `%20`, -1)
+	expires := strconv.FormatInt(time.Now().Add(expiresIn).Unix(), 10)
+	toSign := method + "\n\n\n" + expires + "\n/" + o.c.Bucket + key
+
+	// Generate signature
+	mac := hmac.New(sha1.New, []byte(o.c.Secret))
+	mac.Write([]byte(toSign))
+
+	sig := strings.TrimSpace(base64.StdEncoding.EncodeToString(mac.Sum(nil)))
+
+	// Assemble url
+	var v = make(url.Values)
+	v.Set("AWSAccessKeyId", o.c.Key)
+	v.Set("Expires", expires)
+	v.Set("Signature", sig)
+
+	u, err := url.Parse("https://s3.amazonaws.com")
+	if err != nil {
+		return nil, err
+	}
+	u.Path = `/` + o.c.Bucket + o.Key
+	u.RawQuery = v.Encode()
+
+	return u, nil
+}
+
 // Delete deletes the S3 object.
 func (o *Object) Delete() error {
 	_, err := o.request("DELETE", 204)
