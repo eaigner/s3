@@ -65,7 +65,7 @@ func TestS3(t *testing.T) {
 	}
 
 	// Unauthenticated access
-	resp, err := http.Get("http://s3.amazonaws.com/" + s3.Bucket + o.Key)
+	resp, err := http.Get("http://s3.amazonaws.com/" + s3.Bucket + `/` + o.Key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,14 +133,13 @@ func TestS3(t *testing.T) {
 func TestFormURL(t *testing.T) {
 	fileName := "form 1.txt"
 	content := "form upload content!"
-	key := fmt.Sprintf("/%d/%s", time.Now().UnixNano(), fileName)
-	o := s3.Object(key)
+	o := s3.Object(fmt.Sprintf("/%d/%s", time.Now().UnixNano(), fileName))
 
 	p := make(Policy)
 	p.SetExpiration(3600)
 	p.Conditions().AddBucket(s3.Bucket)
 	p.Conditions().AddACL(PublicRead)
-	p.Conditions().MatchEquals("$key", key)
+	p.Conditions().MatchEquals("$key", o.Key)
 
 	u, err := o.FormUploadURL(PublicRead, p)
 	if err != nil {
@@ -160,8 +159,8 @@ func TestFormURL(t *testing.T) {
 				t.Fatal(v)
 			}
 		case "key":
-			if v[0] != key {
-				t.Log(key)
+			if v[0] != o.Key {
+				t.Log(o.Key)
 				t.Fatal(v)
 			}
 		case "policy":
@@ -215,5 +214,14 @@ func TestFormURL(t *testing.T) {
 		b, _ := ioutil.ReadAll(res.Body)
 		t.Log(string(b))
 		t.Fatal(x)
+	}
+
+	// Exists?
+	exists, err := o.Exists()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal("file not found")
 	}
 }

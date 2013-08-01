@@ -100,7 +100,7 @@ func (o *Object) AuthenticatedURL(method string, expiresIn time.Duration) (*url.
 	// spaces are escaped differently in the path and query.
 	key := strings.Replace(o.urlSafeKey(), `+`, `%20`, -1)
 	expires := strconv.FormatInt(time.Now().Add(expiresIn).Unix(), 10)
-	toSign := method + "\n\n\n" + expires + "\n/" + o.c.Bucket + key
+	toSign := method + "\n\n\n" + expires + "\n/" + o.c.Bucket + `/` + key
 
 	// Generate signature
 	mac := hmac.New(sha1.New, []byte(o.c.Secret))
@@ -118,7 +118,7 @@ func (o *Object) AuthenticatedURL(method string, expiresIn time.Duration) (*url.
 	if err != nil {
 		return nil, err
 	}
-	u.Path = `/` + o.c.Bucket + o.Key
+	u.Path = `/` + o.c.Bucket + `/` + o.Key
 	u.RawQuery = v.Encode()
 
 	return u, nil
@@ -182,6 +182,7 @@ func (o *Object) request(method string, expectCode int) (*http.Response, error) 
 	}
 	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 	o.c.signRequest(req)
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err

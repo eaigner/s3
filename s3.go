@@ -22,7 +22,7 @@ type S3 struct {
 func (c *S3) Object(key string) *Object {
 	return &Object{
 		c:   c,
-		Key: prependSlash(key),
+		Key: removeSlash(key),
 	}
 }
 
@@ -33,6 +33,10 @@ func (c *S3) url(path string) *url.URL {
 	}
 	u.Path = prependSlash(path)
 	return u
+}
+
+func removeSlash(s string) string {
+	return strings.Trim(s, ` /`)
 }
 
 func prependSlash(s string) string {
