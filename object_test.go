@@ -133,7 +133,7 @@ func TestS3(t *testing.T) {
 func TestFormURL(t *testing.T) {
 	fileName := "form 1.txt"
 	content := "form upload content!"
-	key := fmt.Sprintf("%d/%s", time.Now().UnixNano(), fileName)
+	key := fmt.Sprintf("/%d/%s", time.Now().UnixNano(), fileName)
 	o := s3.Object(key)
 
 	p := make(Policy)
@@ -161,6 +161,7 @@ func TestFormURL(t *testing.T) {
 			}
 		case "key":
 			if v[0] != key {
+				t.Log(key)
 				t.Fatal(v)
 			}
 		case "policy":
