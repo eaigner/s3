@@ -57,7 +57,7 @@ Delete the object.
 err := obj.Delete()
 ```
 
-#### Generate Signed URLs
+#### Generate Signed Form Upload URLs
 
 ```
 o := s3c.Object("hello.txt")
@@ -69,6 +69,12 @@ p.Conditions().AddACL(s3.PublicRead)
 p.Conditions().MatchStartsWith("$key", "hello.txt")
 
 url, err := o.FormUploadURL(s3.PublicRead, p)
+```
+
+#### Generate Pre-Signed Expiring URLs
+
+```
+url, err := o.AuthenticatedURL("GET", time.Second*60)
 ```
 
 ### Acknowledgements
