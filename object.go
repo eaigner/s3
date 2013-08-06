@@ -114,7 +114,7 @@ func (o *Object) AuthenticatedURL(method string, expiresIn time.Duration) (*url.
 	v.Set("Expires", expires)
 	v.Set("Signature", sig)
 
-	u, err := url.Parse("https://s3.amazonaws.com")
+	u, err := url.Parse("http://s3.amazonaws.com")
 	if err != nil {
 		return nil, err
 	}

@@ -27,7 +27,7 @@ func (c *S3) Object(key string) *Object {
 }
 
 func (c *S3) url(path string) *url.URL {
-	u, err := url.Parse("https://" + c.Bucket + ".s3.amazonaws.com")
+	u, err := url.Parse("http://" + c.Bucket + ".s3.amazonaws.com")
 	if err != nil {
 		panic(err)
 	}
