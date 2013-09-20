@@ -74,7 +74,7 @@ func TestS3(t *testing.T) {
 	}
 
 	// Test access with pre-signed url
-	u, err := o.AuthenticatedURL("GET", 60*time.Second)
+	u, err := o.AuthenticatedURL(false, "GET", 60*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

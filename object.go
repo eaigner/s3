@@ -92,7 +92,7 @@ func (o *Object) FormUploadURL(acl ACL, policy Policy, customParams ...url.Value
 }
 
 // AuthenticatedURL produces a signed URL that can be used to access private resources
-func (o *Object) AuthenticatedURL(method string, expiresIn time.Duration) (*url.URL, error) {
+func (o *Object) AuthenticatedURL(useHttps bool, method string, expiresIn time.Duration) (*url.URL, error) {
 	// Create signature string
 	//
 	// Make sure to always use + instead of %20, otherwise
@@ -114,7 +114,11 @@ func (o *Object) AuthenticatedURL(method string, expiresIn time.Duration) (*url.
 	v.Set("Expires", expires)
 	v.Set("Signature", sig)
 
-	u, err := url.Parse("http://s3.amazonaws.com")
+	scheme := "http"
+	if useHttps {
+		scheme = "https"
+	}
+	u, err := url.Parse(scheme + "://s3.amazonaws.com")
 	if err != nil {
 		return nil, err
 	}
