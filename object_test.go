@@ -19,6 +19,14 @@ var s3 = &S3{
 	Secret: os.Getenv("S3_SECRET"),
 }
 
+func TestDelete(t *testing.T) {
+	obj := s3.Object("doesnotexist")
+	// delete should always return 204 and no error
+	if err := obj.Delete(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestS3(t *testing.T) {
 	key := fmt.Sprintf("%d/test 1.txt", time.Now().UnixNano())
 	o := s3.Object(key)
