@@ -24,29 +24,26 @@ type Object struct {
 	Key string
 }
 
-// ObjectHead represents the headers returned by a HEAD request.
-type ObjectHead struct {
-	http.Header
+type Header http.Header
+
+func (h Header) Date() (time.Time, error) {
+	return time.Parse(time.RFC1123, http.Header(h).Get("Date"))
 }
 
-func (oh *ObjectHead) Date() (time.Time, error) {
-	return time.Parse(time.RFC1123, oh.Get("Date"))
+func (h Header) LastModified() (time.Time, error) {
+	return time.Parse(time.RFC1123, http.Header(h).Get("Last-Modified"))
 }
 
-func (oh *ObjectHead) LastModified() (time.Time, error) {
-	return time.Parse(time.RFC1123, oh.Get("Last-Modified"))
+func (h Header) ETag() string {
+	return http.Header(h).Get("ETag")
 }
 
-func (oh *ObjectHead) ETag() string {
-	return oh.Get("ETag")
+func (h Header) ContentLength() (int64, error) {
+	return strconv.ParseInt(http.Header(h).Get("Content-Length"), 10, 64)
 }
 
-func (oh *ObjectHead) ContentLength() (int64, error) {
-	return strconv.ParseInt(oh.Get("Content-Length"), 10, 64)
-}
-
-func (oh *ObjectHead) ContentType() string {
-	return oh.Get("Content-Type")
+func (h Header) ContentType() string {
+	return http.Header(h).Get("Content-Type")
 }
 
 type ACL string
@@ -144,13 +141,13 @@ func (o *Object) Exists() (bool, error) {
 }
 
 // Head gets the objects meta information.
-func (o *Object) Head() (*ObjectHead, error) {
+func (o *Object) Head() (Header, error) {
 	resp, err := o.request("HEAD", 0)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode == 200 {
-		return &ObjectHead{resp.Header}, nil
+		return Header(resp.Header), nil
 	}
 	return nil, errors.New(http.StatusText(resp.StatusCode))
 }
