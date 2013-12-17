@@ -1,24 +1,33 @@
 package s3
 
 import (
-	"bytes"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 )
 
-type s3error struct {
-	resp *http.Response
-	body bytes.Buffer
+type S3Error struct {
+	statusCode int
+	body       string
 }
 
-func newS3Error(r *http.Response) *s3error {
-	err := &s3error{resp: r}
-	io.Copy(&err.body, r.Body)
-	r.Body.Close()
+func newS3Error(r *http.Response) *S3Error {
+	defer r.Body.Close()
+	err := &S3Error{statusCode: r.StatusCode}
+	// copy xml error description body
+	b, _ := ioutil.ReadAll(r.Body)
+	err.body = string(b)
 	return err
 }
 
-func (e *s3error) Error() string {
-	return fmt.Sprintf("s3 returned status %d (%s)", e.resp.StatusCode, e.body.String())
+func (e *S3Error) Error() string {
+	return fmt.Sprintf("s3: %d", e.statusCode)
+}
+
+func (e *S3Error) StatusCode() int {
+	return e.statusCode
+}
+
+func (e *S3Error) XMLBody() string {
+	return e.body
 }
