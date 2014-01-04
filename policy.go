@@ -24,34 +24,38 @@ func (p Policy) Conditions() *PolicyConditions {
 
 type PolicyConditions []interface{}
 
-func (c *PolicyConditions) Add(key, value string) {
+func (c *PolicyConditions) addKv(key, value string) {
 	*c = append(*c, map[string]string{key: value})
 }
 
-func (c *PolicyConditions) AddBucket(bucket string) {
-	c.Add("bucket", bucket)
+func (c *PolicyConditions) addArray(key string, args ...interface{}) {
+	*c = append(*c, append([]interface{}{key}, args...))
 }
 
-func (c *PolicyConditions) AddACL(acl ACL) {
-	c.Add("acl", string(acl))
+func (c *PolicyConditions) Bucket(bucket string) {
+	c.addKv("bucket", bucket)
 }
 
-func (c *PolicyConditions) AddRedirect(url string) {
-	c.Add("redirect", url)
+func (c *PolicyConditions) ACL(acl ACL) {
+	c.addKv("acl", string(acl))
 }
 
-func (c *PolicyConditions) AddSuccessActionRedirect(url string) {
-	c.Add("success_action_redirect", url)
+func (c *PolicyConditions) Redirect(url string) {
+	c.addKv("redirect", url)
 }
 
-func (c *PolicyConditions) Match(mtype, cond, match string) {
-	*c = append(*c, []string{mtype, cond, match})
+func (c *PolicyConditions) SuccessActionRedirect(url string) {
+	c.addKv("success_action_redirect", url)
 }
 
-func (c *PolicyConditions) MatchEquals(cond, match string) {
-	c.Match("eq", cond, match)
+func (c *PolicyConditions) Equals(cond, match string) {
+	c.addArray("eq", cond, match)
 }
 
-func (c *PolicyConditions) MatchStartsWith(cond, match string) {
-	c.Match("starts-with", cond, match)
+func (c *PolicyConditions) StartsWith(cond, match string) {
+	c.addArray("starts-with", cond, match)
+}
+
+func (c *PolicyConditions) ContentLengthRange(from, to int) {
+	c.addArray("content-length-range", from, to)
 }

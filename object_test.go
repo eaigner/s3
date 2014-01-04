@@ -145,9 +145,9 @@ func TestFormURL(t *testing.T) {
 
 	p := make(Policy)
 	p.SetExpiration(3600)
-	p.Conditions().AddBucket(s3.Bucket)
-	p.Conditions().AddACL(PublicRead)
-	p.Conditions().MatchEquals("$key", o.Key)
+	p.Conditions().Bucket(s3.Bucket)
+	p.Conditions().ACL(PublicRead)
+	p.Conditions().Equals("$key", o.Key)
 
 	u, err := o.FormUploadURL(PublicRead, p)
 	if err != nil {
