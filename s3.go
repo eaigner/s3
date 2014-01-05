@@ -12,90 +12,111 @@ import (
 	"time"
 )
 
+// S3 holds the S3 configuration
 type S3 struct {
+	// Bucket is the S3 bucket to use
 	Bucket string
-	Key    string
+
+	// AccessKey is the S3 access key
+	AccessKey string
+
+	// Secret is the S3 secret
 	Secret string
+
+	// Path is the path to prepend to all keys
+	Path string
 }
 
-// Object returns a new S3 object handle for the specified key.
-func (c *S3) Object(key string) *Object {
-	return &Object{
-		c:   c,
-		Key: removeSlash(key),
-	}
+func (s3 *S3) Object(key string) Object {
+	return &object{key: key, s3: *s3}
 }
 
-func (c *S3) url(path string) *url.URL {
-	u, err := url.Parse("https://" + c.Bucket + ".s3.amazonaws.com")
-	if err != nil {
-		panic(err)
-	}
-	u.Path = prependSlash(path)
-	return u
-}
-
-func removeSlash(s string) string {
-	return strings.Trim(s, ` /`)
-}
-
-func prependSlash(s string) string {
-	if s != "" && !strings.HasPrefix(s, "/") {
-		return "/" + s
-	}
-	return s
-}
-
-func (c *S3) signRequest(req *http.Request) {
-	amzHeaders := ""
-	resource := "/" + c.Bucket + req.URL.Path
-
-	// Parameters require specific ordering
-	query := req.URL.Query()
-	if len(query) > 0 {
-		keys := []string{}
-		for k := range query {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-
-		parts := []string{}
-		for _, key := range keys {
-			vals := query[key]
-			for _, val := range vals {
-				if val == "" {
-					parts = append(parts, url.QueryEscape(key))
-				} else {
-					part := fmt.Sprintf("%s=%s", url.QueryEscape(key), url.QueryEscape(val))
-					parts = append(parts, part)
-				}
-			}
-		}
-
-		req.URL.RawQuery = strings.Join(parts, "&")
-	}
-
-	if req.URL.RawQuery != "" {
-		resource += "?" + req.URL.RawQuery
-	}
-
+// http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html
+func (s3 *S3) authString(req *http.Request) string {
 	if req.Header.Get("Date") == "" {
-		req.Header.Set("Date", time.Now().Format(time.RFC1123))
+		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 	}
 
-	authStr := strings.Join([]string{
+	// canonicalize amz headers
+	a := make([]string, 0, 1)
+	for k, _ := range req.Header {
+		k = strings.ToLower(k)
+		if strings.HasPrefix(k, "x-amz-") {
+			a = append(a, k)
+		}
+	}
+
+	sort.Strings(a)
+
+	for i, v := range a {
+		k := http.CanonicalHeaderKey(v)
+		vv := req.Header[k]
+		a[i] = v + `:` + strings.Join(vv, `,`) + "\n"
+	}
+
+	canonicalAmzHeaders := strings.Join(a, "")
+
+	// canonicalize resource
+	cres, rawQuery := canonicalResource(req.URL.Path, req.URL.Query())
+	req.URL.RawQuery = rawQuery
+
+	return strings.Join([]string{
 		strings.TrimSpace(req.Method),
 		req.Header.Get("Content-MD5"),
 		req.Header.Get("Content-Type"),
 		req.Header.Get("Date"),
-		amzHeaders + resource,
+		canonicalAmzHeaders + cres,
 	}, "\n")
+}
 
-	h := hmac.New(sha1.New, []byte(c.Secret))
+func canonicalResource(path string, query url.Values) (cres, rawQuery string) {
+	p := strings.Split(path, `/`)
+	for i, v := range p {
+		p[i] = escape(v)
+	}
+	cres = strings.Join(p, `/`)
+
+	if len(query) > 0 {
+		a := make([]string, 0, 1)
+		for k := range query {
+			a = append(a, k)
+		}
+
+		sort.Strings(a)
+
+		parts := make([]string, 0, len(a))
+		for _, k := range a {
+			vv := query[k]
+			for _, v := range vv {
+				if v == "" {
+					parts = append(parts, escape(k))
+				} else {
+					parts = append(parts, fmt.Sprintf("%s=%s", escape(k), escape(v)))
+				}
+			}
+		}
+
+		qs := strings.Join(parts, "&")
+
+		rawQuery = qs
+		cres += `?` + qs
+	}
+
+	return
+}
+
+// escape ensures everything is properly escaped and spaces use %20 instead of +
+func escape(s string) string {
+	return strings.Replace(url.QueryEscape(s), `+`, `%20`, -1)
+}
+
+func (s3 *S3) signRequest(req *http.Request) {
+	authStr := s3.authString(req)
+
+	h := hmac.New(sha1.New, []byte(s3.Secret))
 	h.Write([]byte(authStr))
 
 	h64 := base64.StdEncoding.EncodeToString(h.Sum(nil))
-	auth := "AWS" + " " + c.Key + ":" + h64
+	auth := "AWS " + s3.AccessKey + ":" + h64
 	req.Header.Set("Authorization", auth)
 }

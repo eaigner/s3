@@ -5,7 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,160 +14,198 @@ import (
 	"time"
 )
 
-type WriteAbortCloser interface {
-	io.WriteCloser
-	Abort() error
-}
-
-type Object struct {
-	c   *S3
-	Key string
-}
-
 type ACL string
 
 const (
-	Private           = ACL("private")
-	PublicRead        = ACL("public-read")
-	PublicReadWrite   = ACL("public-read-write")
-	AuthenticatedRead = ACL("authenticated-read")
-	BucketOwnerRead   = ACL("bucket-owner-read")
-	BucketOwnerFull   = ACL("bucket-owner-full-control")
+	Private           ACL = "private"
+	PublicRead        ACL = "public-read"
+	PublicReadWrite   ACL = "public-read-write"
+	AuthenticatedRead ACL = "authenticated-read"
+	BucketOwnerRead   ACL = "bucket-owner-read"
+	BucketOwnerFull   ACL = "bucket-owner-full-control"
 )
 
-// FormUpload returns a new signed form upload url
-func (o *Object) FormUploadURL(acl ACL, policy Policy, customParams ...url.Values) (*url.URL, error) {
-	b, err := json.Marshal(policy)
-	if err != nil {
-		return nil, err
-	}
+const (
+	s3proto = `https`
+	s3host  = `s3.amazonaws.com`
+)
 
-	policy64 := base64.StdEncoding.EncodeToString(b)
-	mac := hmac.New(sha1.New, []byte(o.c.Secret))
-	mac.Write([]byte(policy64))
+type Object interface {
+	// Key returns the object key. If a path was specified in the S3 configuration
+	// it will be prepended to the key.
+	Key() string
 
-	u := o.c.url("")
-	val := make(url.Values)
-	val.Set("AWSAccessKeyId", o.c.Key)
-	val.Set("acl", string(acl))
-	val.Set("key", o.Key)
-	val.Set("signature", base64.StdEncoding.EncodeToString(mac.Sum(nil)))
-	val.Set("policy", policy64)
-	for _, p := range customParams {
-		for k, v := range p {
-			for _, v2 := range v {
-				val.Add(k, v2)
-			}
-		}
-	}
+	// S3 returns the configuration this object is bound to.
+	S3() S3
 
-	u.RawQuery = val.Encode()
+	// Writer returns a new upload io.Writer
+	Writer() Writer
 
-	return u, nil
+	// Reader returns a new ReadCloser to read the file
+	Reader() (io.ReadCloser, http.Header, error)
+
+	// Exists checks if an object with the specified key already exists
+	Exists() (bool, error)
+
+	// Delete deletes an object
+	Delete() error
+
+	// Head does a HEAD request and returns the header
+	Head() (Header, error)
+
+	// ExpiringURL returns a signed, expiring URL for the object
+	ExpiringURL(expiresIn time.Duration) (*url.URL, error)
+
+	// FormURL returns a signed URL for multipart form uploads
+	FormURL(acl ACL, policy Policy, query ...url.Values) (*url.URL, error)
 }
 
-// AuthenticatedURL produces a signed URL that can be used to access private resources
-func (o *Object) AuthenticatedURL(useHttps bool, method string, expiresIn time.Duration) (*url.URL, error) {
-	// Create signature string
-	//
-	// Make sure to always use + instead of %20, otherwise
-	// we might get problems when pre-authorizing requests because
-	// spaces are escaped differently in the path and query.
-	key := strings.Replace(o.urlSafeKey(), `+`, `%20`, -1)
-	expires := strconv.FormatInt(time.Now().Add(expiresIn).Unix(), 10)
-	toSign := method + "\n\n\n" + expires + "\n/" + o.c.Bucket + `/` + key
-
-	// Generate signature
-	mac := hmac.New(sha1.New, []byte(o.c.Secret))
-	mac.Write([]byte(toSign))
-
-	sig := strings.TrimSpace(base64.StdEncoding.EncodeToString(mac.Sum(nil)))
-
-	// Assemble url
-	var v = make(url.Values)
-	v.Set("AWSAccessKeyId", o.c.Key)
-	v.Set("Expires", expires)
-	v.Set("Signature", sig)
-
-	scheme := "http"
-	if useHttps {
-		scheme = "https"
-	}
-	u, err := url.Parse(scheme + "://s3.amazonaws.com")
-	if err != nil {
-		return nil, err
-	}
-	u.Path = `/` + o.c.Bucket + `/` + o.Key
-	u.RawQuery = v.Encode()
-
-	return u, nil
+type object struct {
+	key string
+	s3  S3
 }
 
-// Delete deletes the S3 object.
-func (o *Object) Delete() error {
-	_, err := o.request("DELETE", 204)
-	return err
-}
-
-// Exists tests if an object already exists.
-func (o *Object) Exists() (bool, error) {
-	resp, err := o.request("HEAD", 0)
-	if err != nil {
-		return false, err
+func (o *object) Key() string {
+	if p := trim(o.s3.Path); p != "" {
+		return p + `/` + trim(o.key)
 	}
-	return (resp.StatusCode == 200), nil
+	return trim(o.key)
 }
 
-// Head gets the objects meta information.
-func (o *Object) Head() (Header, error) {
-	resp, err := o.request("HEAD", 0)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode == 200 {
-		return Header(resp.Header), nil
-	}
-	return nil, errors.New(http.StatusText(resp.StatusCode))
+func (o *object) S3() S3 {
+	return o.s3
 }
 
-// Writer returns a new WriteAbortCloser you can write to.
-// The written data will be uploaded as a multipart request.
-func (o *Object) Writer() (WriteAbortCloser, error) {
-	return newUploader(o.c, o.urlSafeKey())
+func (o *object) Writer() Writer {
+	return newWriter(o)
 }
 
-// Reader returns a new ReadCloser you can read from.
-func (o *Object) Reader() (io.ReadCloser, http.Header, error) {
-	resp, err := o.request("GET", 200)
+func (o *object) Reader() (io.ReadCloser, http.Header, error) {
+	resp, err := o.request("GET", 200, "error creating reader")
 	if err != nil {
 		return nil, nil, err
 	}
 	return resp.Body, resp.Header, nil
 }
 
-func (o *Object) urlSafeKey() string {
-	comp := strings.Split(o.Key, `/`)
-	a := make([]string, 0, len(comp))
-	for _, s := range comp {
-		a = append(a, url.QueryEscape(s))
+func (o *object) Exists() (bool, error) {
+	resp, err := o.request("HEAD", 0, "")
+	if err != nil {
+		return false, err
 	}
-	return strings.Join(a, `/`)
+	resp.Body.Close()
+	return (resp.StatusCode == 200), err
+
 }
 
-func (o *Object) request(method string, expectCode int) (*http.Response, error) {
-	req, err := http.NewRequest(method, o.c.url(o.urlSafeKey()).String(), nil)
+func (o *object) Delete() error {
+	resp, err := o.request("DELETE", 204, "error deleting object")
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return err
+}
+
+func (o *object) Head() (Header, error) {
+	resp, err := o.request("HEAD", 200, "error getting head")
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
-	o.c.signRequest(req)
+	resp.Body.Close()
+	return Header(resp.Header), nil
+}
+
+func (o *object) ExpiringURL(expiresIn time.Duration) (*url.URL, error) {
+	// create signature string
+	// TODO(erik): unify this with the request signing method.
+	method := "GET"
+	expires := strconv.FormatInt(time.Now().Add(expiresIn).Unix(), 10)
+	cres, _ := canonicalResource(o.resource(""), nil)
+	toSign := method + "\n\n\n" + expires + "\n" + cres
+
+	// generate signature
+	mac := hmac.New(sha1.New, []byte(o.s3.Secret))
+	mac.Write([]byte(toSign))
+
+	sig := strings.TrimSpace(base64.StdEncoding.EncodeToString(mac.Sum(nil)))
+
+	// assemble url
+	var v = make(url.Values)
+	v.Set("AWSAccessKeyId", o.s3.AccessKey)
+	v.Set("Expires", expires)
+	v.Set("Signature", sig)
+
+	u, err := url.Parse(o.url(""))
+	if err != nil {
+		return nil, err
+	}
+	u.RawQuery = v.Encode()
+
+	return u, nil
+}
+
+func (o *object) FormURL(acl ACL, policy Policy, query ...url.Values) (*url.URL, error) {
+	b, err := json.Marshal(policy)
+	if err != nil {
+		return nil, err
+	}
+
+	policy64 := base64.StdEncoding.EncodeToString(b)
+	mac := hmac.New(sha1.New, []byte(o.s3.Secret))
+	mac.Write([]byte(policy64))
+
+	uv := make(url.Values)
+	uv.Set("AWSAccessKeyId", o.s3.AccessKey)
+	uv.Set("acl", string(acl))
+	uv.Set("key", o.Key())
+	uv.Set("signature", base64.StdEncoding.EncodeToString(mac.Sum(nil)))
+	uv.Set("policy", policy64)
+	for _, p := range query {
+		for k, v := range p {
+			for _, v2 := range v {
+				uv.Add(k, v2)
+			}
+		}
+	}
+
+	u, err := url.Parse(s3proto + `://` + o.s3.Bucket + `.` + s3host)
+	if err != nil {
+		return nil, err
+	}
+	u.RawQuery = uv.Encode()
+
+	return u, nil
+}
+
+func (o *object) request(method string, code int, serr string) (*http.Response, error) {
+	req, err := http.NewRequest(method, o.url(""), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	o.s3.signRequest(req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	if expectCode != 0 && resp.StatusCode != expectCode {
-		return nil, newS3Error(resp)
+
+	if c := resp.StatusCode; code > 0 && c != code {
+		return nil, fmt.Errorf("s3: %s (%s)", serr, http.StatusText(c))
 	}
+
 	return resp, nil
+}
+
+func (o *object) resource(query string) string {
+	return `/` + o.s3.Bucket + `/` + o.Key() + query
+}
+
+func (o *object) url(query string) string {
+	return s3proto + `://` + s3host + o.resource(query)
+}
+
+func trim(s string) string {
+	return strings.Trim(s, ` /`)
 }

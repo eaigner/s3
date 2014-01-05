@@ -14,9 +14,10 @@ import (
 )
 
 var s3 = &S3{
-	Bucket: os.Getenv("S3_BUCKET"),
-	Key:    os.Getenv("S3_KEY"),
-	Secret: os.Getenv("S3_SECRET"),
+	Bucket:    os.Getenv("S3_BUCKET"),
+	AccessKey: os.Getenv("S3_KEY"),
+	Secret:    os.Getenv("S3_SECRET"),
+	Path:      `test`,
 }
 
 func TestDelete(t *testing.T) {
@@ -28,18 +29,14 @@ func TestDelete(t *testing.T) {
 }
 
 func TestS3(t *testing.T) {
-	key := fmt.Sprintf("%d/test 1.txt", time.Now().UnixNano())
+	key := fmt.Sprintf("%d/ü n i c ö d e.txt", time.Now().UnixNano())
 	o := s3.Object(key)
 	o.Delete()
 
 	// Write
-	w, err := o.Writer()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	s := "hello!"
-	_, err = io.Copy(w, bytes.NewBufferString(s))
+	w := o.Writer()
+	_, err := io.Copy(w, bytes.NewBufferString(s))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,24 +69,15 @@ func TestS3(t *testing.T) {
 		t.Fatal(x)
 	}
 
-	// Unauthenticated access
-	resp, err := http.Get("http://s3.amazonaws.com/" + s3.Bucket + `/` + o.Key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != 403 {
-		t.Fatal(resp.StatusCode)
-	}
-
 	// Test access with pre-signed url
-	u, err := o.AuthenticatedURL(false, "GET", 60*time.Second)
+	u, err := o.ExpiringURL(60 * time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log(u.String())
 
-	resp, err = http.Get(u.String())
+	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +93,16 @@ func TestS3(t *testing.T) {
 
 	if x := string(body); x != s {
 		t.Fatal(x)
+	}
+
+	// Unauthorized access
+	u.RawQuery = ""
+	resp, err = http.Get(u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 403 {
+		t.Fatal(resp.StatusCode)
 	}
 
 	// Head
@@ -139,17 +137,17 @@ func TestS3(t *testing.T) {
 }
 
 func TestFormURL(t *testing.T) {
-	fileName := "form 1.txt"
-	content := "form upload content!"
+	fileName := "ü n i c ö d e.txt"
+	content := "form"
 	o := s3.Object(fmt.Sprintf("/%d/%s", time.Now().UnixNano(), fileName))
 
 	p := make(Policy)
 	p.SetExpiration(3600)
 	p.Conditions().Bucket(s3.Bucket)
 	p.Conditions().ACL(PublicRead)
-	p.Conditions().Equals("$key", o.Key)
+	p.Conditions().Equals("$key", o.Key())
 
-	u, err := o.FormUploadURL(PublicRead, p)
+	u, err := o.FormURL(PublicRead, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,8 +165,8 @@ func TestFormURL(t *testing.T) {
 				t.Fatal(v)
 			}
 		case "key":
-			if v[0] != o.Key {
-				t.Log(o.Key)
+			if v[0] != o.Key() {
+				t.Log(o.Key())
 				t.Fatal(v)
 			}
 		case "policy":

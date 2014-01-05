@@ -9,6 +9,7 @@ s3c := &s3.S3{
   Bucket: os.Getenv("S3_BUCKET"),
   Key:    os.Getenv("S3_KEY"),
   Secret: os.Getenv("S3_SECRET"),
+  Path:   os.Getenv("S3_PATH"),
 }
 ```
 
@@ -25,9 +26,9 @@ obj := s3c.Object("path/to/hello.txt")
 Writing to the `WriteAbortCloser` returned by `Writer()` allows you to upload objects.
 
 ```
-w, err := obj.Writer()
-defer w.Close()
+w := obj.Writer()
 io.Copy(w, bytes.NewBufferString("hello world!"))
+w.Close()
 
 // NOTE: You can abort uploads with w.Abort()
 ```
@@ -64,19 +65,15 @@ o := s3c.Object("hello.txt")
 
 p := make(s3.Policy)
 p.SetExpiration(3600)
-p.Conditions().AddBucket(s3c.Bucket)
-p.Conditions().AddACL(s3.PublicRead)
-p.Conditions().MatchStartsWith("$key", "hello.txt")
+p.Conditions().Bucket(s3c.Bucket)
+p.Conditions().ACL(s3.PublicRead)
+p.Conditions().StartsWith("$key", "hello.txt")
 
-url, err := o.FormUploadURL(s3.PublicRead, p)
+url, err := o.FormURL(s3.PublicRead, p)
 ```
 
 #### Generate Pre-Signed Expiring URLs
 
 ```
-url, err := o.AuthenticatedURL("GET", time.Second*60)
+url, err := o.ExpiringURL(time.Second*60)
 ```
-
-### Acknowledgements
-
-Thanks goes to [Keith Rarick](https://github.com/kr) and [Lye](https://github.com/lye) on whose s3 packages this implementation is based on.
