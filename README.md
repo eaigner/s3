@@ -6,10 +6,10 @@ The configuration contains you credentials and bucket info.
 
 ```
 s3c := &s3.S3{
-  Bucket: os.Getenv("S3_BUCKET"),
-  Key:    os.Getenv("S3_KEY"),
-  Secret: os.Getenv("S3_SECRET"),
-  Path:   os.Getenv("S3_PATH"),
+  Bucket:    os.Getenv("S3_BUCKET"),
+  AccessKey: os.Getenv("S3_KEY"),
+  Secret:    os.Getenv("S3_SECRET"),
+  Path:      os.Getenv("S3_PATH"),
 }
 ```
 
